@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Military Board Game</title>
+  <link rel="stylesheet" href="index.css">
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.26.0"
+  }
+}
+</script>
+</head>
+<body>
+  <h1>Military Board Game</h1>
+  <div class="controls">
+    <button id="stepBtn">Step</button>
+    <button id="playBtn">Auto</button>
+    <button id="resetBtn">Reset</button>
+    <button id="saveLayoutBtn">Save Layout</button>
+    <!-- Scenario dropdown added beside Demo as requested -->
+    <label style="margin-left:6px;color:#cfe">Scenario:</label>
+<select id="scenarioSelect" class="highlight" style="padding:6px;border-radius:6px">
+  <option value="1">1 — Civilian Riot</option>
+  <option value="2">2 — Forest Skirmish</option>
+  <option value="3">3 — Urban Ambush</option>
+  <option value="4">4 — Infiltration</option>
+  <option value="5">5 — VIP Escort</option>
+  <option value="6">6 — Urban Combat</option>
+  <option value="7">7 — Sniper Duel</option>
+  <option value="8">8 — Last Stand</option>
+  <option value="9">9 — Guerilla Warfare</option>
+  <option value="10">10 — All-Out War</option>
+  <option value="11">11 — Desert Siege</option>
+  <option value="12">12 — Bridge Crossing</option>
+  <option value="13">13 — Stealth Operation</option>
+  <option value="14">14 — Pitched Battle</option>
+  <option value="15">15 — Large-Scale Battle</option>
+  <option value="16">16 — Village Defense</option>
+  <option value="17">17 — Armored Assault</option>
+  <option value="18">18 — Symmetrical Warfare</option>
+  <option value="19">19 — Horde Defense</option>
+  <option value="20">20 — Commando Strike</option>
+</select>
+    <button id="clearBtn">Clear</button>
+    <label style="margin-left:8px">Speed:</label>
+    <input id="speed" type="range" min="100" max="1200" value="600">
+    <div class="info" id="turnInfo">Turn: 0</div>
+  </div>
+  <div style="display:flex;gap:12px;align-items:flex-start">
+    <div style="position: relative;">
+      <div class="board" id="board" style="--cols:9"></div>
+      <div id="animation-layer"></div>
+    </div>
+    <div style="width:520px">
+      <div style="padding:8px;background:#071826;border-radius:8px">
+        <strong>Piece Palette</strong>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <button id="btnSoldier">Soldier</button>
+          <button id="btnSniper">Sniper</button>
+          <button id="btnRifle">Rifleman</button>
+          <button id="btnMarksman">Marksman</button>
+          <button id="btnMedic">Medic</button>
+          <button id="btnGren">Grenadier</button>
+          <button id="btnCommando">Commando</button>
+          <button id="btnCiv">Civilian</button>
+          <button id="btnGeneral">General</button>
+          <button id="btnSpy">Spy</button>
+          <button id="btnRemove">Remove</button>
+        </div>
+        <div style="margin-top:6px; display:flex; gap: 8px; align-items: center;">
+          <label>Active Team:</label>
+          <select id="activeTeam" class="highlight">
+            <option value="A">Team A (Military)</option>
+            <option value="B">Team B (Bandits)</option>
+          </select>
+          <label style="margin-left:8px">Zone Type:</label>
+          <select id="zoneTypeSelect" class="highlight">
+            <option value="corners">Corners</option>
+            <option value="vertical">Vertical</option>
+            <option value="horizontal">Horizontal</option>
+          </select>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:6px;align-items:center">
+          <label class="small">Placement Zones:</label>
+          <input type="checkbox" id="enforceZones" checked> Enforce zones
+          <label class="small" style="margin-left:8px">Highlight active zone</label>
+          <input type="checkbox" id="highlightZone" checked>
+        </div>
+      </div>
+      <div style="margin-top:10px;padding:8px;background:#071826;border-radius:8px">
+        <strong>Environment Palette</strong>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+            <button id="btnWall">Wall</button>
+            <button id="btnCorpse">Corpse</button>
+        </div>
+      </div>
+      <div id="scenarioDetailsPanel" style="display: none; margin-top:10px;padding:8px;background:#071826;border-radius:8px">
+        <strong>Scenario Details</strong>
+        <div id="scenarioLore" class="small" style="margin-top: 6px;"></div>
+      </div>
+      <div id="tideOfBattlePanel" style="display: none; margin-top:10px;padding:8px;background:#071826;border-radius:8px">
+        <strong>Tide of Battle</strong>
+        <div id="tideOfBattleContainer" style="margin-top: 8px;">
+            <div class="tide-container">
+                <div style="position: absolute; left: 10px; z-index: 1; color: white; text-shadow: 1px 1px 2px black;">Team A</div>
+                <div style="position: absolute; right: 10px; z-index: 1; color: white; text-shadow: 1px 1px 2px black;">Team B</div>
+                <div id="tideA" class="tide-bar tide-a" style="width: 50%;"></div>
+                <div id="tideB" class="tide-bar tide-b" style="width: 50%;"></div>
+            </div>
+        </div>
+      </div>
+      <div style="margin-top:10px;padding:8px;background:#071826;border-radius:8px">
+        <strong>Team Strategies</strong>
+        <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
+          <label>Team A’s Strategy</label>
+          <select id="stratA" class="highlight"></select>
+        </div>
+        <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
+          <label>Team B’s Strategy</label>
+          <select id="stratB" class="highlight"></select>
+        </div>
+        <div style="margin-top:8px">
+          <div id="teamADesc" class="small">Team A’s Strategy: <span id="teamAStr">Balanced</span> — <span id="teamAStrDesc">Units balance offense and defense and engage nearby foes.</span></div>
+          <div id="teamBDesc" class="small" style="margin-top: 4px;">Team B’s Strategy: <span id="teamBStr">Aggressive Swarm</span> — <span id="teamBStrDesc">Rush and overwhelm nearest enemies.</span></div>
+        </div>
+      </div>
+      <div id="aiAdvisorPanel" style="margin-top:10px;padding:8px;background:#071826;border-radius:8px">
+        <strong>AI Tactical Advisor</strong>
+        <div id="aiChatHistory" class="small" style="height: 150px; overflow-y: auto; background: #0b1220; padding: 6px; border-radius: 4px; margin-top: 6px; display: flex; flex-direction: column; gap: 4px;"></div>
+        <div style="display:flex; gap: 6px; margin-top: 6px;">
+          <input type="text" id="aiChatInput" placeholder="Ask the AI for advice...">
+          <button id="aiChatSendBtn" style="padding: 6px 10px;">Send</button>
+        </div>
+      </div>
+      <div class="statsBox" id="statsBox">
+        <div class="statLine"><div>Team A — Alive</div><div id="teamAAlive">0</div></div>
+        <div class="statLine"><div>Team A — Casualties</div><div id="teamACas">0</div></div>
+        <div class="statLine"><div>Team B — Alive</div><div id="teamBAlive">0</div></div>
+        <div class="statLine"><div>Team B — Casualties</div><div id="teamBCas">0</div></div>
+      </div>
+      <div style="margin-top:10px;padding:8px;background:#071826;border-radius:8px">
+        <strong>Settings</strong>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+          <label>Board size: <input id="inpSize" type="number" min="5" max="15" value="9" style="width:64px"></label>
+          <label>Soldier HP: <input id="inpHP" type="number" min="10" max="500" value="100" style="width:64px"></label>
+          <label>Soldier Damage Min/Max: <input id="dMin" type="number" value="20" style="width:54px"> / <input id="dMax" type="number" value="35" style="width:54px"></label>
+          <label>Rifleman Damage Min/Max: <input id="rMin" type="number" value="25" style="width:54px"> / <input id="rMax" type="number" value="35" style="width:54px"></label>
+          <label>Rifle Bandages: <input id="rUses" type="number" value="3" style="width:54px"></label>
+          <label>Marksman Damage Min/Max: <input id="mmMin" type="number" value="30" style="width:54px"> / <input id="mmMax" type="number" value="45" style="width:54px"></label>
+          <label>Marksman Range: <input id="mmRange" type="number" value="3" style="width:54px"></label>
+          <label>Sniper Damage Min/Max: <input id="sMin" type="number" value="50" style="width:54px"> / <input id="sMax" type="number" value="85" style="width:54px"></label>
+          <label>Sniper Cooldown: <input id="sCD" type="number" value="2" style="width:54px"></label>
+          <label>Sniper Range: <input id="sRange" type="number" value="4" style="width:54px"></label>
+          <label>Rifleman Max Targets: <input id="rTargets" type="number" value="3" style="width:54px"></label>
+          <label>Commando HP: <input id="commandoHP" type="number" value="200" style="width:54px"></label>
+          <label>Commando Damage Min/Max: <input id="cMin" type="number" value="50" style="width:54px"> / <input id="cMax" type="number" value="85" style="width:54px"></label>
+          <label>Commando Max Targets: <input id="cTargets" type="number" value="3" style="width:54px"></label>
+          <label>Commando Cooldown (Atk/Move): <input id="cACD" type="number" value="1" style="width:54px"> / <input id="cMCD" type="number" value="1" style="width:54px"></label>
+          <label>Medic Heal Min/Max: <input id="mMin" type="number" value="30" style="width:54px"> / <input id="mMax" type="number" value="45" style="width:54px"></label>
+          <label>Medic Bandages: <input id="mUses" type="number" value="3" style="width:54px"></label>
+          <label>Medic Heal Cooldown (turns): <input id="mCD" type="number" value="1" style="width:54px"></label>
+          <label>Soldier/Commando Bandages: <input id="hUses" type="number" value="3" style="width:54px"></label>
+          <label>General Bandages: <input id="gUses" type="number" value="10" style="width:54px"></label>
+          <label>Grenade Damage Min/Max: <input id="gMin" type="number" value="70" style="width:54px"> / <input id="gMax" type="number" value="90" style="width:54px"></label>
+          <label>Grenade Cooldown: <input id="gCD" type="number" value="3" style="width:54px"></label>
+          <label>Grenade Range: <input id="gRange" type="number" value="1" style="width:54px"></label>
+          <div style="margin-top:6px">
+            <label><input type="checkbox" id="enableCorpses"> Corpses? (50 HP obstacles when units die)</label>
+          </div>
+          <div style="margin-top:6px">
+            <label><input type="checkbox" id="secureArea" disabled> Clean Up Corpses? (Winning Team Destroys Remaining Corpses)</label>
+          </div>
+          <div style="margin-top:6px">
+            <label><input type="checkbox" id="showTideOfBattle"> Show Tide of Battle</label>
+          </div>
+          <div style="margin-top:6px">
+            <label><input type="checkbox" id="smoothAnimations"> Smooth Animations</label>
+          </div>
+          <div style="margin-top:6px">
+            <label><input type="checkbox" id="funnyScenarios"> Funny Scenarios (changes titles & descriptions)</label>
+          </div>
+          <div style="display:flex;gap:6px; margin-top: 8px;">
+            <button id="applySettingsBtn">Apply Settings (resets board)</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:10px;padding:8px;background:#071826;border-radius:8px">
+        <strong>Auto Team Builder</strong>
+        <div style="margin-top:6px">Set counts and click Auto-Fill to place squads.</div>
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <label>A Soldiers<input id="countA" type="number" value="5" style="width:64px"></label>
+          <label>A Snipers<input id="countAS" type="number" value="1" style="width:64px"></label>
+          <label>A Rifle<input id="countAR" type="number" value="0" style="width:64px"></label>
+          <label>A Marksman<input id="countAMm" type="number" value="0" style="width:64px"></label>
+          <label>A Medic<input id="countAM" type="number" value="1" style="width:64px"></label>
+          <label>A Gren<input id="countAG" type="number" value="0" style="width:64px"></label>
+          <label>A Commando<input id="countACo" type="number" value="0" style="width:64px"></label>
+          <label>A Civilians<input id="countAC" type="number" value="0" style="width:64px"></label>
+          <label>A Generals<input id="countAGen" type="number" value="0" style="width:64px"></label>
+          <label>A Spies<input id="countASpy" type="number" value="0" style="width:64px"></label>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <label>B Soldiers<input id="countB" type="number" value="10" style="width:64px"></label>
+          <label>B Snipers<input id="countBS" type="number" value="0" style="width:64px"></label>
+          <label>B Rifle<input id="countBR" type="number" value="0" style="width:64px"></label>
+          <label>B Marksman<input id="countBMm" type="number" value="0" style="width:64px"></label>
+          <label>B Medic<input id="countBM" type="number" value="0" style="width:64px"></label>
+          <label>B Gren<input id="countBG" type="number" value="0" style="width:64px"></label>
+          <label>B Commando<input id="countBCo" type="number" value="0" style="width:64px"></label>
+          <label>B Civilians<input id="countBC" type="number" value="0" style="width:64px"></label>
+          <label>B Generals<input id="countBGen" type="number" value="0" style="width:64px"></label>
+          <label>B Spies<input id="countBSpy" type="number" value="0" style="width:64px"></label>
+        </div>
+        <div style="margin-top:8px">
+          <button id="autoFillBtn">Auto-Fill</button> <button id="clearTeamsBtn">Clear All</button>
+        </div>
+      </div>
+      <div id="aiScenarioGeneratorPanel" style="margin-top:10px;padding:8px;background:#071826;border-radius:8px">
+        <strong>AI Scenario Generator</strong>
+        <div class="small" style="margin-top:6px">Describe a battle scenario and let the AI create it for you.</div>
+        <textarea id="aiScenarioInput" placeholder="e.g., A small commando team must rescue a VIP from a heavily guarded facility." style="width: 100%; height: 60px; margin-top: 6px; box-sizing: border-box;"></textarea>
+        <div style="margin-top: 6px;">
+            <button id="aiScenarioGenerateBtn">Generate Scenario</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="log" id="log"></div>
+  <script type="module" src="index.tsx"></script>
+</body>
+</html>
