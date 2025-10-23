@@ -6,7 +6,6 @@ import { Unit } from './types';
 import * as state from './state';
 import * as C from './constants';
 import * as utils from './utils';
-import * as ai from './ai/index';
 import { log, render, updateStrategySelectsUI, updateStrategyDisplays, stopAuto, getCellEl } from './ui';
 import { prepareRedeployment, moveToTarget } from './pathfinding';
 
@@ -275,15 +274,6 @@ export function step() {
     }
 
     // --- 2. Action Planning by State ---
-    if (state.gameState === 'COMBAT') {
-        ai.planCombat(alive);
-    } else if (state.gameState === 'CLEANING_UP') {
-        ai.planCleaningUp(alive, winningTeamId!);
-    } else if (state.gameState === 'PATCHING_UP') {
-        ai.planPatchingUp(aliveFighters, winningTeamId!);
-    } else if (state.gameState === 'REDEPLOYING') {
-        ai.planRedeploying(aliveFighters, winningTeamId!);
-    }
     
     // --- 3. Action Resolution & Movement ---
     const incoming = resolveActions();

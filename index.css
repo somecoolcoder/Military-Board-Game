@@ -63,11 +63,3 @@
     @keyframes effect-animation{0%{opacity:1;transform:scale(.8)}100%{opacity:0;transform:scale(1.2)}}
     .damage-flash{position:absolute;width:var(--size);height:var(--size);border-radius:4px;background:rgba(255,50,50,0.5);animation:flash-animation .4s ease-out forwards}
     @keyframes flash-animation{0%{opacity:1;transform:scale(1.1)}100%{opacity:0;transform:scale(1)}}
-    #aiChatInput { background: #11161b; border: 1px solid #25303b; color: white; padding: 6px; border-radius: 4px; flex-grow: 1; }
-    #aiChatInput::placeholder { color: #889; }
-    #aiChatHistory .user-message { color: #aef; text-align: right; margin-left: 20%; }
-    #aiChatHistory .ai-message { color: #8f8; white-space: pre-wrap; margin-right: 20%; }
-    #aiChatHistory .ai-message strong { color: #fff; }
-    #aiChatHistory .error-message { color: #f88; }
-    #aiScenarioInput { background: #11161b; border: 1px solid #25303b; color: white; padding: 6px; border-radius: 4px; resize: vertical; font-family: inherit; font-size: 13px; }
-    #aiScenarioInput::placeholder { color: #889; }
