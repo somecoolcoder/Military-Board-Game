@@ -6,6 +6,7 @@ import { Unit } from './types';
 import * as state from './state';
 import * as C from './constants';
 import * as utils from './utils';
+import * as ai from './ai/index';
 import { log, render, updateStrategySelectsUI, updateStrategyDisplays, stopAuto, getCellEl } from './ui';
 import { prepareRedeployment, moveToTarget } from './pathfinding';
 
@@ -50,7 +51,8 @@ export function addUnitAt(x: number, y: number, t: string, team: string): Unit |
   const id = idBase + '_' + (state.units.length + 1);
   
   let maxHP = C.HP_SOLDIER;
-  if (t === 'civ') maxHP = C.HP_CIV;
+  if (t === 'mil') maxHP = C.HP_SOLDIER;
+  else if (t === 'civ') maxHP = C.HP_CIV;
   else if (t === 'rifle') maxHP = C.HP_RIFLE;
   else if (t === 'sniper') maxHP = C.HP_SNIPER;
   else if (t === 'medic') maxHP = C.HP_MEDIC;
@@ -65,7 +67,7 @@ export function addUnitAt(x: number, y: number, t: string, team: string): Unit |
   let unitTeam = team;
   if (isObstacle) unitTeam = (t === 'corpse') ? 'CORPSE' : 'OBSTACLE';
 
-  const u: Unit = { id, type: t, x, y, realTeam: unitTeam, team: t === 'spy' ? displayTeam : unitTeam, hp: maxHP, maxHP: maxHP, alive: true, cooldown: 0, healCooldown: 0, grenCooldown: 0, spyCooldown: 0, attackCooldown: 0, moveCooldown: 0, healUses: (t === 'medic') ? C.MEDIC_BANDAGES : (t === 'mil' || t === 'commando') ? C.MAX_HEAL_USES : (t === 'rifle') ? C.RIFLE_BANDAGES : (t === 'general') ? C.GENERAL_BANDAGES : 0, lastBandageTurn: -9999, spyRevealed: (t === 'spy') ? false : null, patience: (t === 'spy') ? 3 : undefined, positionHistory: [], lastOffensiveActionTurn: 0 };
+  const u: Unit = { id, type: t, x, y, realTeam: unitTeam, team: t === 'spy' ? displayTeam : unitTeam, hp: maxHP, maxHP: maxHP, alive: true, cooldown: 0, healCooldown: 0, grenCooldown: 0, spyCooldown: 0, attackCooldown: 0, moveCooldown: 0, healUses: (t === 'medic') ? C.MEDIC_BANDAGES : (t === 'mil') ? C.SOLDIER_BANDAGES : (t === 'commando') ? C.COMMANDO_BANDAGES : (t === 'rifle') ? C.RIFLE_BANDAGES : (t === 'general') ? C.GENERAL_BANDAGES : 0, lastBandageTurn: -9999, spyRevealed: (t === 'spy') ? false : null, patience: (t === 'spy') ? 3 : undefined, positionHistory: [], lastOffensiveActionTurn: 0 };
   state.units.push(u);
   return u;
 }
@@ -118,7 +120,7 @@ function resolveActions() {
             if (adjacentCover.length > 0) {
                 adjacentCover.sort((a,b) => a.hp - b.hp);
                 const coverTarget = adjacentCover[0];
-                const collateralDmg = Math.round(C.COMMANDO_MIN * 0.25);
+                const collateralDmg = Math.round(C.COMMANDO_MIN * (C.COMMANDO_COLLATERAL_PERCENT / 100));
                 incoming.set(coverTarget.id, (incoming.get(coverTarget.id) || 0) + collateralDmg);
                 log(`${u.id}'s attack on ${t.id} deals ${collateralDmg} collateral damage to ${coverTarget.id}!`);
             }
@@ -165,7 +167,7 @@ function resolveActions() {
     }
     if (p.grenadeAt) {
       const gx = p.grenadeAt.x, gy = p.grenadeAt.y;
-      state.effects.push({ type: 'projectile', from: { x: u.x, y: u.y }, to: { x: gx, y: gy }, id: `anim_${Date.now()}_${Math.random()}` });
+      state.effects.push({ type: 'grenade_projectile', from: { x: u.x, y: u.y }, to: { x: gx, y: gy }, id: `anim_${Date.now()}_${Math.random()}` });
       const dmg = utils.randInt(C.GREN_MIN, C.GREN_MAX);
       for (const t of state.units.filter(x => x.alive && Math.max(Math.abs(x.x - gx), Math.abs(x.y - gy)) <= 1)) {
           // Grenadiers are immune to their own blasts.
@@ -188,7 +190,7 @@ function resolveActions() {
     if (p.backstab) {
         const tgt = state.units.find(x => x.id === p.backstab && x.alive);
         if (tgt) {
-            let dmg = utils.randInt(80, 125);
+            let dmg = utils.randInt(C.SPY_BACKSTAB_MIN, C.SPY_BACKSTAB_MAX);
             let coverMsg = '';
             if (utils.isTargetInCover(u, tgt, state.units)) {
                 const reducedDmg = Math.round(dmg * 0.7);
@@ -274,6 +276,15 @@ export function step() {
     }
 
     // --- 2. Action Planning by State ---
+    if (state.gameState === 'COMBAT') {
+        ai.planCombat(alive);
+    } else if (state.gameState === 'CLEANING_UP') {
+        ai.planCleaningUp(alive, winningTeamId!);
+    } else if (state.gameState === 'PATCHING_UP') {
+        ai.planPatchingUp(aliveFighters, winningTeamId!);
+    } else if (state.gameState === 'REDEPLOYING') {
+        ai.planRedeploying(aliveFighters, winningTeamId!);
+    }
     
     // --- 3. Action Resolution & Movement ---
     const incoming = resolveActions();
@@ -466,35 +477,52 @@ export function applySettings() {
   
   C.updateConstants({
       HP_SOLDIER: parseInt((document.getElementById('inpHP') as HTMLInputElement).value),
+      HP_RIFLE: parseInt((document.getElementById('rifleHP') as HTMLInputElement).value),
+      HP_MARKSMAN: parseInt((document.getElementById('marksmanHP') as HTMLInputElement).value),
+      HP_SNIPER: parseInt((document.getElementById('sniperHP') as HTMLInputElement).value),
+      HP_MEDIC: parseInt((document.getElementById('medicHP') as HTMLInputElement).value),
+      HP_GREN: parseInt((document.getElementById('grenHP') as HTMLInputElement).value),
+      HP_COMMANDO: parseInt((document.getElementById('commandoHP') as HTMLInputElement).value),
+      HP_GENERAL: parseInt((document.getElementById('generalHP') as HTMLInputElement).value),
+      HP_SPY: parseInt((document.getElementById('spyHP') as HTMLInputElement).value),
+      HP_CIV: parseInt((document.getElementById('civHP') as HTMLInputElement).value),
+      HP_WALL: parseInt((document.getElementById('wallHP') as HTMLInputElement).value),
+
       DAMAGE_MIN: parseInt((document.getElementById('dMin') as HTMLInputElement).value),
       DAMAGE_MAX: parseInt((document.getElementById('dMax') as HTMLInputElement).value),
       RIFLE_MIN: parseInt((document.getElementById('rMin') as HTMLInputElement).value),
       RIFLE_MAX: parseInt((document.getElementById('rMax') as HTMLInputElement).value),
-      RIFLE_BANDAGES: parseInt((document.getElementById('rUses') as HTMLInputElement).value),
       MARKSMAN_DAMAGE_MIN: parseInt((document.getElementById('mmMin') as HTMLInputElement).value),
       MARKSMAN_DAMAGE_MAX: parseInt((document.getElementById('mmMax') as HTMLInputElement).value),
-      MARKSMAN_RANGE: parseInt((document.getElementById('mmRange') as HTMLInputElement).value),
       SNIPER_DAMAGE_MIN: parseInt((document.getElementById('sMin') as HTMLInputElement).value),
       SNIPER_DAMAGE_MAX: parseInt((document.getElementById('sMax') as HTMLInputElement).value),
-      SNIPER_COOLDOWN: parseInt((document.getElementById('sCD') as HTMLInputElement).value),
-      SNIPER_RANGE: parseInt((document.getElementById('sRange') as HTMLInputElement).value),
-      RIFLE_MAX_TARGETS: parseInt((document.getElementById('rTargets') as HTMLInputElement).value),
-      HP_COMMANDO: parseInt((document.getElementById('commandoHP') as HTMLInputElement).value),
       COMMANDO_MIN: parseInt((document.getElementById('cMin') as HTMLInputElement).value),
       COMMANDO_MAX: parseInt((document.getElementById('cMax') as HTMLInputElement).value),
+      GREN_MIN: parseInt((document.getElementById('gMin') as HTMLInputElement).value),
+      GREN_MAX: parseInt((document.getElementById('gMax') as HTMLInputElement).value),
+      SPY_BACKSTAB_MIN: parseInt((document.getElementById('spyMin') as HTMLInputElement).value),
+      SPY_BACKSTAB_MAX: parseInt((document.getElementById('spyMax') as HTMLInputElement).value),
+
+      SOLDIER_BANDAGES: parseInt((document.getElementById('soldierUses') as HTMLInputElement).value),
+      RIFLE_BANDAGES: parseInt((document.getElementById('rUses') as HTMLInputElement).value),
+      RIFLE_MAX_TARGETS: parseInt((document.getElementById('rTargets') as HTMLInputElement).value),
+      MARKSMAN_RANGE: parseInt((document.getElementById('mmRange') as HTMLInputElement).value),
+      SNIPER_RANGE: parseInt((document.getElementById('sRange') as HTMLInputElement).value),
+      SNIPER_COOLDOWN: parseInt((document.getElementById('sCD') as HTMLInputElement).value),
+      COMMANDO_BANDAGES: parseInt((document.getElementById('commandoUses') as HTMLInputElement).value),
       COMMANDO_MAX_TARGETS: parseInt((document.getElementById('cTargets') as HTMLInputElement).value),
       COMMANDO_ATTACK_CD: parseInt((document.getElementById('cACD') as HTMLInputElement).value),
       COMMANDO_MOVE_CD: parseInt((document.getElementById('cMCD') as HTMLInputElement).value),
+      COMMANDO_COLLATERAL_PERCENT: parseInt((document.getElementById('cCollateral') as HTMLInputElement).value),
       MEDIC_HEAL_MIN: parseInt((document.getElementById('mMin') as HTMLInputElement).value),
       MEDIC_HEAL_MAX: parseInt((document.getElementById('mMax') as HTMLInputElement).value),
       MEDIC_BANDAGES: parseInt((document.getElementById('mUses') as HTMLInputElement).value),
       MEDIC_HEAL_COOLDOWN: parseInt((document.getElementById('mCD') as HTMLInputElement).value),
-      MAX_HEAL_USES: parseInt((document.getElementById('hUses') as HTMLInputElement).value),
       GENERAL_BANDAGES: parseInt((document.getElementById('gUses') as HTMLInputElement).value),
-      GREN_MIN: parseInt((document.getElementById('gMin') as HTMLInputElement).value),
-      GREN_MAX: parseInt((document.getElementById('gMax') as HTMLInputElement).value),
-      GREN_COOLDOWN: parseInt((document.getElementById('gCD') as HTMLInputElement).value),
       GRENADE_RANGE: parseInt((document.getElementById('gRange') as HTMLInputElement).value),
+      GREN_COOLDOWN: parseInt((document.getElementById('gCD') as HTMLInputElement).value),
+      SPY_COOLDOWN: parseInt((document.getElementById('spyCD') as HTMLInputElement).value),
+      AI_MOVE_TEMPERATURE: parseInt((document.getElementById('aiMoveTemp') as HTMLInputElement).value),
   });
 
   state.setEnableCorpses((document.getElementById('enableCorpses') as HTMLInputElement).checked);

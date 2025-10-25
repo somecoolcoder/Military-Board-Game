@@ -8,7 +8,7 @@ export interface Position {
 }
 
 export interface Animation {
-  type: 'projectile' | 'death' | 'heal' | 'bandage' | 'explosion' | 'damage';
+  type: 'projectile' | 'death' | 'heal' | 'bandage' | 'explosion' | 'damage' | 'grenade_projectile';
   from?: Position;
   to?: Position;
   at?: Position;

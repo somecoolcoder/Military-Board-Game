@@ -105,8 +105,7 @@ export function normalizeUnitFields(u: any) {
     if (typeof u.cooldown === 'undefined') u.cooldown = 0;
     if (typeof u.healCooldown === 'undefined') u.healCooldown = 0;
     if (typeof u.healUses === 'undefined') {
-      // FIX: Use C.MAX_HEAL_USES for commandos to align with game.ts and fix reference to non-existent C.COMMANDO_BANDAGES.
-      u.healUses = (u.type === 'medic') ? C.MEDIC_BANDAGES : (u.type === 'mil' || u.type === 'commando') ? C.MAX_HEAL_USES : (u.type === 'rifle') ? C.RIFLE_BANDAGES : (u.type === 'general') ? C.GENERAL_BANDAGES : 0;
+      u.healUses = (u.type === 'medic') ? C.MEDIC_BANDAGES : (u.type === 'mil') ? C.SOLDIER_BANDAGES : (u.type === 'commando') ? C.COMMANDO_BANDAGES : (u.type === 'rifle') ? C.RIFLE_BANDAGES : (u.type === 'general') ? C.GENERAL_BANDAGES : 0;
     }
     if (typeof u.grenCooldown === 'undefined') u.grenCooldown = 0;
     if (typeof u.spyCooldown === 'undefined') u.spyCooldown = 0;
